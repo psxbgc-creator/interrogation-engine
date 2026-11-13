@@ -1,0 +1,14 @@
+{
+  "name": "interrogation-engine",
+  "version": "1.0.0",
+  "description": "A small data-driven engine for tense one-on-one conversations: interrogations, confessions, negotiations. Lies, evidence, meters, a simulator, and a mobile-first view.",
+  "main": "src/interrogation.js",
+  "files": ["src", "scenarios", "tools", "docs"],
+  "scripts": {
+    "test": "node --test && node tools/check.js",
+    "check": "node tools/check.js"
+  },
+  "keywords": ["game", "interrogation", "dialogue", "narrative", "visual-novel", "mystery", "detective"],
+  "license": "MIT",
+  "engines": { "node": ">=18" }
+}

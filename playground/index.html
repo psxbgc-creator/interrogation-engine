@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Interrogation Engine Playground</title>
+<link rel="stylesheet" href="../src/interrogation-view.css">
+<style>
+/* Playground: play a scenario, simulate thousands of games, print a transcript, see the structure. */
+:root { --bg:#0f141b; --panel:#171e28; --line:#2b3644; --fg:#ece6d8; --muted:#a3acb7; --gold:#e2b24a; --good:#8fd3a5; --bad:#f0907a; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 system-ui, -apple-system, 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; padding: 0 max(16px, env(safe-area-inset-right)) 40px max(16px, env(safe-area-inset-left)); }
+.wrap { max-width: 780px; margin: 0 auto; }
+header { padding: 20px 0 6px; }
+h1 { margin: 0; font-size: 21px; }
+header p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+select, input, button { font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-height: 42px; padding: 0 12px; }
+button { cursor: pointer; }
+button.primary { background: var(--gold); color: #1d1608; border-color: var(--gold); font-weight: 800; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; background: var(--panel); border-radius: 12px; padding: 4px; margin: 8px 0 14px; }
+.tabs button { border: 0; background: transparent; color: var(--muted); font-weight: 700; min-height: 40px; padding: 0 4px; }
+.tabs button[aria-selected="true"] { background: #26303d; color: var(--fg); }
+section[hidden] { display: none; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.card h2 { margin: 0; font-size: 15px; }
+.muted { color: var(--muted); font-size: 13.5px; }
+.evs { display: flex; flex-wrap: wrap; gap: 6px; }
+.evs label { display: flex; align-items: center; gap: 6px; background: #1d2631; border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 13.5px; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 14px; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 12.5px; }
+.stack { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: #222b36; min-width: 120px; margin-top: 4px; }
+.stack i { display: block; }
+.ok { color: var(--good); } .ng { color: var(--bad); }
+pre { white-space: pre-wrap; word-break: break-word; background: #11171f; border: 1px solid var(--line); border-radius: 12px; padding: 14px; font: 13.5px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin: 0; max-height: 70vh; overflow: auto; }
+ul.list, ol.list { margin: 0; padding-left: 20px; }
+.box { overflow-x: auto; }
+code { background: #222b36; border-radius: 4px; padding: 0 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Interrogation Engine Playground</h1>
+  <p>Play a scenario, measure it over thousands of simulated games, and read transcripts to find lines that don't follow on.</p>
+</header>
+
+<div class="bar">
+  <label for="scn" class="muted">Scenario</label>
+  <select id="scn"></select>
+  <label class="muted" for="file">Load your own <code>.js</code></label>
+  <input id="file" type="file" accept=".js">
+</div>
+
+<nav class="tabs" role="tablist">
+  <button type="button" role="tab" data-tab="play" aria-selected="true">Play</button>
+  <button type="button" role="tab" data-tab="sim" aria-selected="false">Simulate</button>
+  <button type="button" role="tab" data-tab="talk" aria-selected="false">Transcript</button>
+  <button type="button" role="tab" data-tab="info" aria-selected="false">Structure</button>
+</nav>
+
+<section id="tab-play" class="card">
+  <h2>Play it yourself</h2>
+  <div class="bar"><label for="preset" class="muted">Approach</label><select id="preset"></select></div>
+  <div><div class="muted">Evidence you bring</div><div class="evs" id="evs"></div></div>
+  <div class="bar"><button type="button" class="primary" id="go">Start</button><span id="result" class="muted"></span></div>
+</section>
+
+<section id="tab-sim" class="card" hidden>
+  <h2>Simulate</h2>
+  <p class="muted">Plays many games with the scenario's <code>sim.policy</code> (a first-time player) and compares the outcome rates with <code>sim.targets</code>. Counter-examples come from <code>sim.checks</code>.</p>
+  <div class="bar"><label for="simn" class="muted">Games</label><input id="simn" type="number" min="100" max="20000" step="100" value="2000" style="width:110px"><button type="button" class="primary" id="simgo">Run</button></div>
+  <div class="box" id="simout"></div>
+</section>
+
+<section id="tab-talk" class="card" hidden>
+  <h2>Transcript</h2>
+  <p class="muted">Plays one game with the policy and prints it. Raise the noise for a messier player.</p>
+  <div class="bar">
+    <select id="tpreset" aria-label="Approach"></select>
+    <label class="muted" for="noise">Noise</label><input id="noise" type="number" min="0" max="1" step="0.1" value="0.3" style="width:80px">
+    <label class="muted" for="seed">Game #</label><input id="seed" type="number" min="1" value="1" style="width:80px">
+    <button type="button" class="primary" id="tgo">Print</button>
+  </div>
+  <pre id="tout">Press Print.</pre>
+</section>
+
+<section id="tab-info" class="card" hidden>
+  <h2>Structure</h2>
+  <div id="info"></div>
+</section>
+</div>
+
+<script src="../src/interrogation.js"></script>
+<script src="../src/interrogation-view.js"></script>
+<script src="../scenarios/office-envelope.js"></script>
+<script src="../scenarios/parking-scrape.js"></script>
+<script src="../scenarios/ko/office-envelope.js"></script>
+<script src="../scenarios/ko/parking-scrape.js"></script>
+<script>
+(function () {
+  'use strict';
+  const I = window.Interrogation;
+  const V = window.InterrogationView;
+  const $ = (sel) => document.querySelector(sel);
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // The examples ship without artwork: a simple silhouette whose colour follows the mood.
+  const MOOD_COLOR = { happy: '#7fb0e0', smug: '#d9b65a', suspicious: '#e0904a', angry: '#d65a50', sweat: '#a7a0d8', broken: '#8b93a3' };
+  function silhouette(mood) {
+    const c = MOOD_COLOR[mood] || '#9aa6b5';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><circle cx="100" cy="72" r="38" fill="${c}"/><path d="M28 200c4-52 34-80 72-80s68 28 72 80z" fill="${c}"/></svg>`;
+    return 'data:image/svg+xml,' + encodeURIComponent(svg);
+  }
+  function paintBackground(canvas) {
+    const g = canvas.getContext('2d');
+    const grad = g.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, '#2a3442');
+    grad.addColorStop(1, '#141a22');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  const current = () => I.scenarios[$('#scn').value];
+  const policyOf = (sim, p) => (typeof p === 'string' ? [...sim.policies[p], ...sim.policy] : p);
+
+  function fillScenarios(selected) {
+    $('#scn').innerHTML = Object.values(I.scenarios)
+      .map((S) => `<option value="${esc(S.id)}">${esc(S.title || S.id)} (${esc(S.lang || 'en')})</option>`).join('');
+    if (selected) $('#scn').value = selected;
+    refresh();
+  }
+
+  function refresh() {
+    const S = current();
+    if (!S) return;
+    const presets = Object.entries(S.presets).map(([k, p]) => `<option value="${esc(k)}">${esc(k)} · ${esc(p.label || '')}</option>`).join('');
+    $('#preset').innerHTML = presets;
+    $('#tpreset').innerHTML = presets;
+    const ids = S.sim?.evidence || Object.keys(S.evidence || {}).filter((k) => S.evidence[k].kind !== 'said');
+    $('#evs').innerHTML = ids.map((k) => {
+      const alias = S.evidenceAlias?.[k];
+      const label = alias ? alias.map((x) => S.evidence[x]?.label || x).join(' / ') : (S.evidence[k]?.label || k);
+      return `<label><input type="checkbox" value="${esc(k)}" checked> ${esc(label)}</label>`;
+    }).join('');
+    $('#simout').innerHTML = '';
+    $('#tout').textContent = 'Press Print.';
+    $('#result').textContent = '';
+    renderStructure();
+  }
+
+  /* Play */
+  $('#go').onclick = async () => {
+    const S = current();
+    const evidence = [...document.querySelectorAll('#evs input:checked')].map((x) => x.value);
+    const r = await V.open({ scenario: S, preset: $('#preset').value, evidence, host: { bust: (id, mood) => silhouette(mood), paintBg: paintBackground } });
+    $('#result').textContent = `Result: ${r.outcome} · ${r.count}/${S.revelations.length} pieces (${r.why || ''})`;
+  };
+
+  /* Simulate */
+  $('#simgo').onclick = () => {
+    const S = current();
+    const sim = S.sim || {};
+    const n = Math.max(100, Math.min(20000, +$('#simn').value || 2000));
+    const errors = I.validate(S);
+    if (errors.length) {
+      $('#simout').innerHTML = `<p class="ng">${errors.length} authoring problem(s)</p><ul class="list">${errors.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>`;
+      return;
+    }
+    const color = { full: '#8fd3a5', partial: '#e2b24a', fail: '#d0453c' };
+    const row = (name, r, target) => {
+      const bar = Object.entries(r.pct).map(([k, x]) => `<i style="width:${x}%;background:${color[k] || '#7fa7d9'}"></i>`).join('');
+      const t = target ? Object.entries(target).map(([k, [lo, hi]]) => {
+        const ok = r.pct[k] >= lo && r.pct[k] <= hi;
+        return `<span class="${ok ? 'ok' : 'ng'}">${esc(k)} ${lo}–${hi}% ${ok ? '✓' : '✗'}</span>`;
+      }).join(' ') : '';
+      return `<tr><td>${esc(name)}</td><td>${Object.entries(r.pct).map(([k, x]) => `${esc(k)} ${x.toFixed(1)}%`).join(' · ')}<div class="stack">${bar}</div></td><td>${r.avgTurns.toFixed(1)}</td><td>${t}</td></tr>`;
+    };
+    let html = '<table><thead><tr><th>Approach</th><th>Outcomes</th><th>Turns</th><th>Target</th></tr></thead><tbody>';
+    for (const p of Object.keys(S.presets)) {
+      const r = I.simulate(S, { preset: p, n, noise: sim.noise ?? 0.2, evidence: sim.evidence, seed: 3 });
+      html += row(`${p} ${S.presets[p].label || ''}`, r, sim.targets?.[p]);
+    }
+    html += '</tbody></table>';
+    if (sim.checks?.length) {
+      html += '<h2 style="margin-top:14px">Counter-examples</h2><table><tbody>';
+      for (const c of sim.checks) {
+        const r = I.simulate(S, { preset: c.preset, n: Math.min(n, 600), noise: c.noise ?? sim.noise ?? 0.2, policy: policyOf(sim, c.policy), evidence: c.evidence || sim.evidence, seed: 5 });
+        const failed = [...Object.entries(c.max || {}).filter(([k, m]) => r.pct[k] > m), ...Object.entries(c.min || {}).filter(([k, m]) => r.pct[k] < m)];
+        html += `<tr><td class="${failed.length ? 'ng' : 'ok'}">${failed.length ? '✗' : '✓'}</td><td>${esc(c.name)}</td><td>${Object.entries(r.pct).map(([k, x]) => `${esc(k)} ${x.toFixed(0)}%`).join(' · ')}</td></tr>`;
+      }
+      html += '</tbody></table>';
+    }
+    $('#simout').innerHTML = html;
+  };
+
+  /* Transcript */
+  $('#tgo').onclick = () => {
+    const S = current();
+    const sim = S.sim || {};
+    const rng = I.rngOf(+$('#seed').value || 1);
+    const s = I.create(S, { preset: $('#tpreset').value, evidence: sim.evidence, rng });
+    const who = (w) => (w === 'player' ? S.actors.player.name : w === 'ally' ? S.actors.ally?.name : S.actors.suspect.name);
+    const out = [];
+    const print = (events) => {
+      for (const e of events) {
+        if (e.t === 'line') out.push(`${who(e.who)}: ${e.text}`);
+        else if (e.t === 'narr') out.push(e.text);
+        else if (e.t === 'note') out.push(`  (${e.text})`);
+        else if (e.t === 'gain') out.push(`  ✎ ${e.label}`);
+        else if (e.t === 'present') out.push(`  [shows: ${e.label}]`);
+        else if (e.t === 'reveal') out.push(`  ● piece ${e.index + 1}: ${e.label}`);
+        else if (e.t === 'end') out.push(`=== end: ${e.outcome} (${e.why})`);
+      }
+    };
+    if (S.ui?.intro) out.push(S.ui.intro);
+    print(s.events);
+    for (let g = 0; !s.over && g < 80; g++) {
+      const o = I.policyPick(s, sim.policy, rng, +$('#noise').value || 0);
+      if (!o) break;
+      print(I.choose(s, o));
+    }
+    $('#tout').textContent = out.join('\n');
+  };
+
+  /* Structure */
+  function renderStructure() {
+    const S = current();
+    const topics = S.topics.map((t) => {
+      const nodes = t.nodes.map((n) => {
+        const lie = n.claim ? ` · lie → ${esc([].concat(n.claim.ev).join(' / '))}${n.claim.reveal ? ' → ' + esc(n.claim.reveal) : ''}` : '';
+        return `<li>${esc(n.id)}${n.gate ? ' · gate' : ''}${lie}</li>`;
+      }).join('');
+      return `<li><b>${esc(t.name || t.id)}</b>${t.requires ? ` <span class="muted">(opens when ${esc(t.requires)})</span>` : ''}<ul class="list">${nodes}</ul></li>`;
+    }).join('');
+    $('#info').innerHTML = `<p class="muted">${esc(S.actors.player.name)} → ${esc(S.actors.suspect.name)}${S.actors.ally ? ' · ally ' + esc(S.actors.ally.name) : ''} · ${S.revelations.length} pieces · ${S.limits.turns} turns</p>
+      <ul class="list">${topics}</ul>
+      <h2 style="margin-top:12px">Pieces</h2><ol class="list">${S.revelations.map((r) => `<li>${esc(r.label)}</li>`).join('')}</ol>`;
+  }
+
+  /* Tabs */
+  document.querySelector('.tabs').onclick = (e) => {
+    const b = e.target.closest('button[data-tab]');
+    if (!b) return;
+    document.querySelectorAll('.tabs button').forEach((x) => x.setAttribute('aria-selected', x === b));
+    document.querySelectorAll('section[id^=tab-]').forEach((sec) => { sec.hidden = sec.id !== 'tab-' + b.dataset.tab; });
+  };
+  $('#scn').onchange = refresh;
+
+  /* Load a scenario file that calls Interrogation.register(...) */
+  $('#file').onchange = (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const before = new Set(Object.keys(I.scenarios));
+    const url = URL.createObjectURL(f);
+    const script = document.createElement('script');
+    script.src = url;
+    script.onload = () => {
+      const added = Object.keys(I.scenarios).find((k) => !before.has(k)) || Object.keys(I.scenarios).pop();
+      fillScenarios(added);
+      URL.revokeObjectURL(url);
+    };
+    script.onerror = () => { $('#result').textContent = 'Could not read that file.'; };
+    document.body.append(script);
+  };
+
+  fillScenarios();
+})();
+</script>
+</body>
+</html>
