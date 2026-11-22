@@ -21,7 +21,7 @@ renders it, and a simulator tells you how it plays before anyone has played it.
 
 ## Try it
 
-Open [`playground/index.html`](playground/index.html) in a browser (no server needed). Play the two example
+**[Open the playground in your browser](https://psxbgc-creator.github.io/interrogation-engine/)** — or open [`playground/index.html`](playground/index.html) locally (no server needed). Play the two example
 scenarios, simulate them, read transcripts, or load your own scenario file.
 
 ## Quick start

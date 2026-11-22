@@ -19,7 +19,7 @@
 
 ## 해 보기
 
-[`playground/index.html`](playground/index.html)을 브라우저로 여세요(서버 필요 없음).
+**[브라우저에서 바로 연습장 열기](https://psxbgc-creator.github.io/interrogation-engine/)** — 또는 [`playground/index.html`](playground/index.html)을 내려받아 브라우저로 여세요(서버 필요 없음).
 예제 두 개(영어·한국어판)를 직접 해 보고, 시뮬레이션하고, 대화를 뽑아 보고, 직접 쓴 시나리오 파일을 불러올 수 있습니다.
 
 ## 빠른 시작
